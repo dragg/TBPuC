@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -14,7 +15,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-namespace laba1
+namespace WpfApplication2
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -24,7 +25,7 @@ namespace laba1
         object sync = new object();
         static private int N = 30;
         private int workingThread;
-        static private int CountThread = 100;
+        static private int CountThread = 10;
         TimeSpan[] arrSpan = new TimeSpan[CountThread];
 
         AutoResetEvent EndThreads = new AutoResetEvent(false);
@@ -33,8 +34,9 @@ namespace laba1
         public MainWindow()
         {
             InitializeComponent();
+
         }
-        
+
         private void CreateAndWork(int n)
         {
             Matrix matrix1 = new Matrix(n);
@@ -64,19 +66,19 @@ namespace laba1
 
                 DateTime timeStart = DateTime.Now;
                 GoThreads.Set();//запуск всех нитей
-                
+
                 EndThreads.WaitOne();//ожидание завершение подсчетов
                 DateTime timeEnd = DateTime.Now;
-                arrSpan[i-1] = timeEnd - timeStart;
+                arrSpan[i - 1] = timeEnd - timeStart;
             }
         }
 
         void CalcThread(object obj)
-        { 
+        {
             GoThreads.WaitOne();//ожидаем старта работы
-            
+
             (obj as Parametrs).matrix1.Mult((obj as Parametrs).matrix2, (obj as Parametrs).position, (obj as Parametrs).count);
-                           
+
             lock (sync)
             {
                 workingThread--;
@@ -90,10 +92,27 @@ namespace laba1
         private void GoCalc(object sender, RoutedEventArgs e)
         {
             Thread th = new Thread(delegate()
-                {
-                    CreateAndWork(N);
-                });
+            {
+                CreateAndWork(N);
+            });
+            (sender as Button).IsEnabled = false;
             th.Start();
+            Thread draw = new Thread(delegate()
+                {
+                    th.Join();
+                    ObservableCollection<TimePoint> timeChart = new ObservableCollection<TimePoint> { };
+                    for (int i = 0; i < arrSpan.Length; i++)
+                    {
+                        timeChart.Add(new TimePoint { TimeSet = arrSpan[i].TotalMilliseconds, ThreadId = i });
+                    }
+                    Dispatcher.Invoke(() =>
+                    {
+                        ChartThread.ItemsSource = timeChart;
+                        (sender as Button).IsEnabled = true;
+                    });
+                });
+            draw.Start();
         }
     }
 }
+

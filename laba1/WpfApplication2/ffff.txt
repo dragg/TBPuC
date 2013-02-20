@@ -1,0 +1,170 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Collections.ObjectModel;
+
+namespace laba1
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        object sync = new object();
+        static private int N = 30;
+        private int workingThread;
+        static private int CountThread = 100;
+        TimeSpan[] arrSpan = new TimeSpan[CountThread];
+
+        AutoResetEvent EndThreads = new AutoResetEvent(false);
+        ManualResetEvent GoThreads = new ManualResetEvent(false);
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+        }
+
+        private void CreateAndWork(int n)
+        {
+            Matrix matrix1 = new Matrix(n);
+            Matrix matrix2 = new Matrix(n);
+            
+            for (int i = 1; i <= CountThread; i++)//i - количество потоков
+            {
+                GoThreads.Reset();//сбросили события для старта всех нитей
+                workingThread = i;
+                int elemOnThread = n * n / i;
+                int residue = n * n % i;
+                int position = 0;
+                //----------------------------------создание и запуск нитей-------------------------
+                Thread[] masThread = new Thread[i];
+                for (int j = 0; j < i; j++)
+                {
+                    masThread[j] = new Thread(CalcThread);
+                    Parametrs par = new Parametrs(matrix1, matrix2, position, (residue == 0 ? elemOnThread : (elemOnThread + 1)));
+                    if (residue != 0)
+                    {
+                        residue--;
+                    }
+                    position += (residue == 0 ? elemOnThread : (elemOnThread + 1));
+                    masThread[j].Start(par);
+                }
+                //----------------------------------------------------------------------------------
+
+                DateTime timeStart = DateTime.Now;
+                GoThreads.Set();//запуск всех нитей
+
+                EndThreads.WaitOne();//ожидание завершение подсчетов
+                DateTime timeEnd = DateTime.Now;
+                arrSpan[i - 1] = timeEnd - timeStart;
+
+                //ObservableCollection<TimePoint> timeChart = new ObservableCollection<TimePoint>
+                //{
+                //   new TimePoint{ TimeSet = arrSpan[i], ThreadId = i}
+                //};
+                
+            }
+        }
+
+        void CalcThread(object obj)
+        {
+            GoThreads.WaitOne();//ожидаем старта работы
+
+            (obj as Parametrs).matrix1.Mult((obj as Parametrs).matrix2, (obj as Parametrs).position, (obj as Parametrs).count);
+
+            lock (sync)
+            {
+                workingThread--;
+                if (workingThread == 0)
+                {
+                    EndThreads.Set();
+                }
+            }
+        }
+
+        private void GoCalc(object sender, RoutedEventArgs e)
+        {
+            Thread th = new Thread(delegate()
+            {
+                CreateAndWork(N);
+            });
+            th.Start();
+            ObservableCollection<TimePoint> timeChart = new ObservableCollection<TimePoint>
+            {
+                
+               new TimePoint{TimeSet = arrSpan[59].Milliseconds, ThreadId = 5},
+            };
+            ChartThread.ItemsSource = timeChart;
+            MessageBox.Show("hhh");
+
+            
+        }
+    }
+}
+
+
+
+
+
+
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace laba1
+{
+    class TimePoint
+    {
+        public int ThreadId { get; set; }
+        public int TimeSet  { get; set; }
+    }
+}
+
+
+
+
+
+
+<Window x:Class="laba1.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:charting="clr-namespace:System.Windows.Controls.DataVisualization.Charting;assembly=System.Windows.Controls.DataVisualization.Toolkit"
+        Title="MainWindow" Height="350" Width="525">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <charting:Chart Grid.Row="0" Margin="3">
+            <charting:LineSeries Name="ChartThread"
+                DependentValuePath="TimeSet" IndependentValuePath="ThreadId" Title="Chart Thread">
+            </charting:LineSeries>
+
+            <charting:Chart.Axes>
+                <charting:LinearAxis Orientation="Y" Minimum="0" Maximum="10" Title="Time" Interval="0.00002"></charting:LinearAxis>
+            </charting:Chart.Axes>
+        </charting:Chart>
+        
+
+        <Button Grid.Row="1" Margin="0,0,5,5" Width="100" HorizontalAlignment="Right" Click="GoCalc" Height="20" VerticalAlignment="Bottom">Поехали!</Button>
+
+    </Grid>
+</Window>

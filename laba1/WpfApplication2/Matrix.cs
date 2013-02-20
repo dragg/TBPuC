@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace laba1
+namespace WpfApplication2
 {
     public class Matrix
     {
