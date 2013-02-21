@@ -23,9 +23,9 @@ namespace WpfApplication2
     public partial class MainWindow : Window
     {
         object sync = new object();
-        static private int N = 30;
+        static private int N = 100;
         private int workingThread;
-        static private int CountThread = 10;
+        static private int CountThread = 300;
         TimeSpan[] arrSpan = new TimeSpan[CountThread];
 
         AutoResetEvent EndThreads = new AutoResetEvent(false);

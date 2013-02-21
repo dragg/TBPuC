@@ -15,7 +15,7 @@
             </charting:LineSeries>
 
             <charting:Chart.Axes>
-                <charting:LinearAxis Orientation="Y" Minimum="0" Maximum="300" Title="Time" Interval="30"></charting:LinearAxis>
+                <charting:LinearAxis Orientation="Y" Minimum="0" Maximum="" Title="Time" Interval=""></charting:LinearAxis>
             </charting:Chart.Axes>
         </charting:Chart>
 
