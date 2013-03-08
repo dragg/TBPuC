@@ -22,10 +22,23 @@ namespace WpfApplication2
     /// </summary>
     public partial class MainWindow : Window
     {
+        public class inf
+        {
+            private int count;
+            public int Count { get { return count; } set { count = value; } }
+            private int size;
+            public int Size { get { return size; } set { size = value; } }
+            public inf(int count, int size)
+            {
+                Count = count;
+                Size = size;
+            }
+        }
+
         object sync = new object();
-        static private int N = 100;
+        static private int N = 30;
         private int workingThread;
-        static private int CountThread = 300;
+        static private int CountThread = 100;
         TimeSpan[] arrSpan = new TimeSpan[CountThread];
 
         AutoResetEvent EndThreads = new AutoResetEvent(false);
@@ -34,15 +47,21 @@ namespace WpfApplication2
         public MainWindow()
         {
             InitializeComponent();
-
         }
 
         private void CreateAndWork(int n)
         {
             Matrix matrix1 = new Matrix(n);
             Matrix matrix2 = new Matrix(n);
-
-            for (int i = 1; i <= CountThread; i++)//i - количество потоков
+            int count = 0;
+            Dispatcher.Invoke(() =>
+                {
+                    inf inf = (MainGrid.DataContext as inf);
+                    count = inf.Count;
+                    n = inf.Size;
+                });
+            arrSpan = new TimeSpan[count];
+            for (int i = 1; i <= count; i++)//i - количество потоков
             {
                 GoThreads.Reset();//сбросили события для старта всех нитей
                 workingThread = i;
@@ -95,7 +114,6 @@ namespace WpfApplication2
             {
                 CreateAndWork(N);
             });
-            (sender as Button).IsEnabled = false;
             th.Start();
             Thread draw = new Thread(delegate()
                 {
@@ -108,10 +126,15 @@ namespace WpfApplication2
                     Dispatcher.Invoke(() =>
                     {
                         ChartThread.ItemsSource = timeChart;
-                        (sender as Button).IsEnabled = true;
                     });
                 });
             draw.Start();
+        }
+
+        private void Window_Loaded_1(object sender, RoutedEventArgs e)
+        {
+            inf inf = new inf(CountThread, N);
+            MainGrid.DataContext = inf;
         }
     }
 }
