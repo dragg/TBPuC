@@ -52,7 +52,7 @@ namespace Client
             Library.Matrix m1 = new Library.Matrix(size);
             Library.Matrix m2 = new Library.Matrix(size);
 
-            Split(0, size * size);
+            //Split(0, size * size);//передавать считать не более 80*80 элементов!
         }
 
         void Split(int begin, int count)
@@ -72,6 +72,8 @@ namespace Client
             DateTime begin;
             
             var binding = new NetTcpBinding();
+            binding.MaxBufferSize = Int32.MaxValue;
+            binding.MaxReceivedMessageSize = Int32.MaxValue;
             binding.Security.Mode = SecurityMode.None;
             ServiceEndpoint se = new ServiceEndpoint(ContractDescription.GetContract(typeof(IServiceContract)),
                 binding, new EndpointAddress(string.Format("net.tcp://{0}:{1}/", par.ip.Address, 2013)));
@@ -113,6 +115,8 @@ namespace Client
         private void Host()
         {
             var binding = new NetTcpBinding();
+            binding.MaxBufferSize = Int32.MaxValue;
+            binding.MaxReceivedMessageSize = Int32.MaxValue;
             binding.Security.Mode = SecurityMode.None;
             ServiceHost host = new ServiceHost(typeof(ServiceContract));
             host.AddServiceEndpoint(typeof(IServiceContract), binding, string.Format("net.tcp://{0}:{1}/", "localhost", 2013));
