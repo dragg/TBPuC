@@ -17,6 +17,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Library;
+using Service;
 
 namespace Client
 {
@@ -26,11 +27,17 @@ namespace Client
     public partial class MainWindow : Window
     {
         private ServerBroadcast broadcast = new ServerBroadcast();
-        List<IPEndPoint> services = new List<IPEndPoint>();
-        List<TimeSpan> interval;
-        ManualResetEvent eventStart = new ManualResetEvent(false);
-        AutoResetEvent eventEnd = new AutoResetEvent(false);
-        object sync = new object();
+        private List<IPEndPoint> services = new List<IPEndPoint>();
+        private List<TimeSpan> interval;//Интервалы времени, потраченные для расчетов на каждой подключенной машине
+        private ManualResetEvent eventStart = new ManualResetEvent(false);
+        private AutoResetEvent eventEnd = new AutoResetEvent(false);
+        private object sync = new object();
+        private InterfaceInfo inf = new InterfaceInfo(100);
+        private AutoResetEvent closeWin = new AutoResetEvent(false);
+        private System.Timers.Timer timerNotify = new System.Timers.Timer(15 * 1000);
+
+        private Library.Matrix m1;
+        private Library.Matrix m2;
 
         public MainWindow()
         {
@@ -39,64 +46,84 @@ namespace Client
 
         private void Go(object sender, RoutedEventArgs e)
         {
-            //Открыть для каждого подключение и вызвать метод
+            int size = inf.Size;
+            interval = new List<TimeSpan>(broadcast.AvailableEndPoints.Count);//Интервалов времени будет столько, сколько изначально компьютеров уведомили нас о своей работоспособности!
 
+            Library.Matrix m1 = new Library.Matrix(size);
+            Library.Matrix m2 = new Library.Matrix(size);
+
+            Split(0, size * size);
+        }
+
+        void Split(int begin, int count)
+        {
             var endPoints = broadcast.AvailableEndPoints.ToArray();
-            interval = new List<TimeSpan>(endPoints.Length);
-            var binding = new NetTcpBinding();
-            binding.Security.Mode = SecurityMode.None;
-
-            bool[] flag = new bool[endPoints.Length];
-
+            
             for (int i = 0; i < endPoints.Length; i++)
             {
-                //new Thread(() =>
-                    {
-                        DateTime begin = DateTime.Now;
-                        //eventStart.WaitOne();
-                        ServiceEndpoint se = new ServiceEndpoint(ContractDescription.GetContract(typeof(IServiceContract)),
-                            binding, new EndpointAddress(string.Format("net.tcp://{0}:{1}/", endPoints[i].Address, 2013)));
-                        ChannelFactory<IServiceContract> fac = new ChannelFactory<IServiceContract>(se);
-                        try
-                        {
-                            fac.Open();
-                            IServiceContract proxy = fac.CreateChannel();
-                            begin = DateTime.Now;//Фиксируем начальное время
-                            MessageBox.Show(proxy.Message());
-                            interval[i] = DateTime.Now - begin;//Считаем промежуток времени!
-                        }
-                        catch (Exception ex)
-                        {
-                            //interval[i] = begin - begin;//Чтобы показать, что ничего не отработано!
-                            //broadcast.AvailableEndPoints.Remove(endPoints[i]);
-                            broadcast.AvailableEndPoints.RemoveAll(u => u.Address == endPoints[i].Address);
-                        }
-                        flag[i] = true;
-                        lock (sync)
-                        {
-                            bool tmp = true;
-                            foreach (var item in flag)
-                            {
-                                if (item == true)
-                                {
-                                    continue;
-                                }
-                                tmp = false;
-                                break;
-                            }
-                            if (tmp == true)
-                            {
-                                eventEnd.Set();//Подсчеты завершены!
-                            }
-                        }
-                    }//).Start();
+                Thread th = new Thread(Calc);
+                th.Start();
             }
-            eventStart.Set();
+        }
+
+        private void Calc(object obj)
+        {
+            var par = obj as Parametrs;
+            DateTime begin;
+            
+            var binding = new NetTcpBinding();
+            binding.Security.Mode = SecurityMode.None;
+            ServiceEndpoint se = new ServiceEndpoint(ContractDescription.GetContract(typeof(IServiceContract)),
+                binding, new EndpointAddress(string.Format("net.tcp://{0}:{1}/", par.ip.Address, 2013)));
+            ChannelFactory<IServiceContract> fac = new ChannelFactory<IServiceContract>(se);
+            try
+            {
+                fac.Open();
+                IServiceContract proxy = fac.CreateChannel();
+                begin = DateTime.Now;//Фиксируем начальное время
+                proxy.Mult(m1, m2, par.position, par.count);
+                interval[par.index] += DateTime.Now - begin;//Считаем промежуток времени!
+            }
+            catch (Exception ex)
+            {
+                broadcast.AvailableEndPoints.RemoveAll(u => u.Address == par.ip.Address);
+                Split(par.position, par.count);//Разделяем упущенное задание на оставшиеся машины
+            }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            timerNotify.Elapsed += timerNotify_Elapsed;
+            timerNotify.Start();
             broadcast.StartListeningServers();
+            gridMain.DataContext = inf;
+            new Thread(() =>
+                {
+                    Host();
+                }).Start();
+        }
+
+        void timerNotify_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            timerNotify.Stop();
+            broadcast.NotifyClients();//Уведомляем сами себя о том, что готовы работать! =)
+            timerNotify.Start();
+        }
+
+        private void Host()
+        {
+            var binding = new NetTcpBinding();
+            binding.Security.Mode = SecurityMode.None;
+            ServiceHost host = new ServiceHost(typeof(ServiceContract));
+            host.AddServiceEndpoint(typeof(IServiceContract), binding, string.Format("net.tcp://{0}:{1}/", "localhost", 2013));
+            host.Open();
+            closeWin.WaitOne();
+            host.Close();
+        }
+
+        private void Window_Closed(object sender, EventArgs e)
+        {
+            closeWin.Set();
         }
     }
 }

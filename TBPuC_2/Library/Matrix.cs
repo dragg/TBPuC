@@ -9,14 +9,14 @@ namespace Library
     [Serializable]
     public class Matrix
     {
-        public int[,] matrix;
+        public int[][] matrix;
         int n;
         Random rnd = new Random();
 
         public Matrix(int n)
         {
             this.n = n;
-            matrix = new int[n, n];
+            matrix = new int[n][];
             init();
         }
 
@@ -24,9 +24,10 @@ namespace Library
         {
             for (int i = 0; i < n; i++)
             {
+                matrix[i] = new int[n];
                 for (int j = 0; j < n; j++)
                 {
-                    matrix[i, j] = rnd.Next();
+                    matrix[i][j] = rnd.Next();
                 }
             }
         }
@@ -40,7 +41,7 @@ namespace Library
             {
                 for (int r = 0; r < n; r++)
                 {
-                    c[k] += matrix[i, r] * m.matrix[r, j];
+                    c[k] += matrix[i][r] * m.matrix[r][j];
                 }
                 if (j == n - 1)
                 {
