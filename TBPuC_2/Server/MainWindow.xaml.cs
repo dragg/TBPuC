@@ -28,13 +28,15 @@ namespace Client
     {
         private ServerBroadcast broadcast = new ServerBroadcast();
         private List<IPEndPoint> services = new List<IPEndPoint>();
-        private List<TimeSpan> interval;//Интервалы времени, потраченные для расчетов на каждой подключенной машине
+        //private List<TimeSpan> interval;//Интервалы времени, потраченные для расчетов на каждой подключенной машине
         private ManualResetEvent eventStart = new ManualResetEvent(false);
         private AutoResetEvent eventEnd = new AutoResetEvent(false);
         private object sync = new object();
         private InterfaceInfo inf = new InterfaceInfo(100);
         private AutoResetEvent closeWin = new AutoResetEvent(false);
-        private System.Timers.Timer timerNotify = new System.Timers.Timer(15 * 1000);
+        private System.Timers.Timer timerNotify = new System.Timers.Timer(3 * 1000);
+
+        private Dictionary<IPEndPoint, TimeSpan> dicTimeSpan = new Dictionary<IPEndPoint, TimeSpan>();
 
         private Library.Matrix m1;
         private Library.Matrix m2;
@@ -46,30 +48,60 @@ namespace Client
 
         private void Go(object sender, RoutedEventArgs e)
         {
-            int size = inf.Size;
-            interval = new List<TimeSpan>(broadcast.AvailableEndPoints.Count);//Интервалов времени будет столько, сколько изначально компьютеров уведомили нас о своей работоспособности!
+            btGo.IsEnabled = false;
+            new Thread(() =>
+                {
+                    int size = inf.Size;
+                    m1 = new Library.Matrix(size);
+                    m2 = new Library.Matrix(size);
 
-            Library.Matrix m1 = new Library.Matrix(size);
-            Library.Matrix m2 = new Library.Matrix(size);
+                    dicTimeSpan = new Dictionary<IPEndPoint, TimeSpan>();
+                    foreach (var item in broadcast.AvailableEndPoints)
+                    {
+                        dicTimeSpan.Add(item, new TimeSpan());
+                    }
 
-            //Split(0, size * size);//передавать считать не более 80*80 элементов!
+                    Split(0, size * size, true);
+                }).Start();
         }
 
-        void Split(int begin, int count)
+        void Split(int begin, int count, bool first = false)
         {
-            var endPoints = broadcast.AvailableEndPoints.ToArray();
-            
-            for (int i = 0; i < endPoints.Length; i++)
+            List<Thread> listThread = new List<Thread>();
+            int workingPC = dicTimeSpan.Count;
+            int elemOnPC = (count - begin) / workingPC;
+            int residue = (count - begin) % workingPC;
+            int position = begin;
+
+            for (int i = 0; i < dicTimeSpan.Count; i++)
             {
+                Parametrs param = new Parametrs(m1, m2, position, (residue == 0 ? elemOnPC : (elemOnPC + 1)), i, dicTimeSpan.Keys.ToArray()[i]);
+                if (residue != 0)
+                {
+                    residue--;
+                }
+                position += (residue == 0 ? elemOnPC : (elemOnPC + 1));
                 Thread th = new Thread(Calc);
-                th.Start();
+                listThread.Add(th);
+                th.Start(param);
+            }
+
+            foreach (var item in listThread)
+            {
+                item.Join();
+            }
+            if (first)
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    btGo.IsEnabled = true;
+                });
             }
         }
 
         private void Calc(object obj)
         {
             var par = obj as Parametrs;
-            DateTime begin;
             
             var binding = new NetTcpBinding();
             binding.MaxBufferSize = Int32.MaxValue;
@@ -82,13 +114,15 @@ namespace Client
             {
                 fac.Open();
                 IServiceContract proxy = fac.CreateChannel();
-                begin = DateTime.Now;//Фиксируем начальное время
+                DateTime begin = DateTime.Now;//Фиксируем начальное время
                 proxy.Mult(m1, m2, par.position, par.count);
-                interval[par.index] += DateTime.Now - begin;//Считаем промежуток времени!
+                dicTimeSpan[par.ip] = DateTime.Now - begin;
             }
             catch (Exception ex)
             {
                 broadcast.AvailableEndPoints.RemoveAll(u => u.Address == par.ip.Address);
+                dicTimeSpan.Remove(par.ip);
+
                 Split(par.position, par.count);//Разделяем упущенное задание на оставшиеся машины
             }
         }

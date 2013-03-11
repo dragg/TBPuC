@@ -39,9 +39,16 @@ namespace Library
             int j = position % n;
             for (int k = 0; k < count; k++)
             {
-                for (int r = 0; r < n; r++)
+                try
                 {
-                    c[k] += matrix[i][r] * m.matrix[r][j];
+                    for (int r = 0; r < n; r++)
+                    {
+                        c[k] += matrix[i][r] * m.matrix[r][j];
+                    }
+                }
+                catch
+                {
+                    c[k] = 0;
                 }
                 if (j == n - 1)
                 {

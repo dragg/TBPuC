@@ -14,6 +14,6 @@
                 <TextBox Padding="5" Margin="5" Text="{Binding Size}"></TextBox>
             </StackPanel>
         </StackPanel>
-        <Button Grid.Row="1" Padding="5,2,5,2" Margin="0,5,10,5" HorizontalAlignment="Right" Click="Go">Поехали!</Button>
+        <Button Name="btGo" Grid.Row="1" Padding="5,2,5,2" Margin="0,5,10,5" HorizontalAlignment="Right" Click="Go">Поехали!</Button>
     </Grid>
 </Window>
