@@ -88,6 +88,7 @@ namespace Library
             foreach (IPEndPoint point in AvailableEndPoints)
                 if (point.Address.Equals(endPoint.Address))
                     return false;
+            endPoint.Port = 2013;
             AvailableEndPoints.Add(endPoint);
             return true;
         }

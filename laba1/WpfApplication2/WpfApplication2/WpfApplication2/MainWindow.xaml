@@ -24,7 +24,7 @@
             <TextBox Text="{Binding Path=Count}" Margin="5" Width="50"></TextBox>
             <TextBlock Text="Размерность матрицы" Margin="5"></TextBlock>
             <TextBox Text="{Binding Size}" Margin="5" Width="50"></TextBox>
-            <Button Margin="20,0,5,5" Width="100" HorizontalAlignment="Right" Click="GoCalc" Height="20" VerticalAlignment="Bottom">Поехали!</Button>
+            <Button Name="btGo" Margin="20,0,5,5" Width="100" HorizontalAlignment="Right" Click="GoCalc" Height="20" VerticalAlignment="Bottom">Поехали!</Button>
         </StackPanel>
 
     </Grid>

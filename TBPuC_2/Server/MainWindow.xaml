@@ -1,19 +1,37 @@
-﻿<Window x:Class="Client.MainWindow"
+﻿<Window
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Client" Height="350" Width="525" Loaded="Window_Loaded" Closed="Window_Closed">
-    <Grid Name="gridMain">
+        xmlns:chartingToolkit="clr-namespace:System.Windows.Controls.DataVisualization.Charting;assembly=System.Windows.Controls.DataVisualization.Toolkit" x:Class="Client.MainWindow"
+        Title="Client" Height="562.979" Width="644.149" Loaded="Window_Loaded" Closed="Window_Closed">
+    <Grid x:Name="gridMain">
         <Grid.RowDefinitions>
-            <RowDefinition></RowDefinition>
-            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Vertical" Grid.Row="0">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Padding="5" Margin="5">Размерность матрицы:</TextBlock>
-                <TextBox Padding="5" Margin="5" Text="{Binding Size}"></TextBox>
+                <TextBlock Padding="5" Margin="5"><Run Text="Размерность матрицы:"/></TextBlock>
+
+                <TextBox Padding="5" Margin="5" Text="{Binding Size}"/>
             </StackPanel>
+            <ListBox x:Name="listBox" Height="164">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <ContentPresenter Content="{Binding Key}" Margin="0 0 4 0"/>
+                            <ContentPresenter Content="{Binding Value}" Margin="0 0 4 0"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <chartingToolkit:Chart Margin="0,10,0,0" Height="284">
+                <chartingToolkit:LineSeries Title="ChartIp" Name="ChartIp"  DependentValuePath="Value" IndependentValuePath="Key" Margin="10,0,10,0" />
+            </chartingToolkit:Chart>
+
         </StackPanel>
-        <Button Name="btGo" Grid.Row="1" Padding="5,2,5,2" Margin="0,5,10,5" HorizontalAlignment="Right" Click="Go">Поехали!</Button>
+
+        <Button x:Name="btGo" Grid.Row="1" Padding="5,2,5,2" Margin="0,5,10,5" HorizontalAlignment="Right" Click="Go" Content="Поехали!"/>
     </Grid>
 </Window>

@@ -64,6 +64,8 @@ namespace Service
             var binding = new NetTcpBinding();
             binding.MaxBufferSize = Int32.MaxValue;
             binding.MaxReceivedMessageSize = Int32.MaxValue;
+            binding.ReceiveTimeout = new TimeSpan(0, 10, 0);
+            binding.SendTimeout = new TimeSpan(0, 10, 0);
             binding.Security.Mode = SecurityMode.None;
             ServiceHost host = new ServiceHost(typeof(ServiceContract));
             host.AddServiceEndpoint(typeof(IServiceContract), binding, string.Format("net.tcp://{0}:{1}/", Setting.IPAdress, Setting.port));

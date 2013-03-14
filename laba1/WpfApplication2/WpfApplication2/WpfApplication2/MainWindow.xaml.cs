@@ -55,11 +55,9 @@ namespace WpfApplication2
             Matrix matrix2 = new Matrix(n);
             int count = 0;
             Dispatcher.Invoke(() =>
-                {
-                    inf inf = (MainGrid.DataContext as inf);
-                    count = inf.Count;
-                    n = inf.Size;
-                });
+            {
+                count = (MainGrid.DataContext as inf).Count;
+            });
             arrSpan = new TimeSpan[count];
             for (int i = 1; i <= count; i++)//i - количество потоков
             {
@@ -112,7 +110,13 @@ namespace WpfApplication2
         {
             Thread th = new Thread(delegate()
             {
-                CreateAndWork(N);
+                int n = 100;
+                Dispatcher.Invoke(() =>
+                    {
+                        btGo.IsEnabled = false;
+                        n = (MainGrid.DataContext as inf).Size;
+                    });
+                CreateAndWork(n);
             });
             th.Start();
             Thread draw = new Thread(delegate()
@@ -126,6 +130,7 @@ namespace WpfApplication2
                     Dispatcher.Invoke(() =>
                     {
                         ChartThread.ItemsSource = timeChart;
+                        btGo.IsEnabled = true;
                     });
                 });
             draw.Start();

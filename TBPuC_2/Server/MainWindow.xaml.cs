@@ -28,15 +28,15 @@ namespace Client
     {
         private ServerBroadcast broadcast = new ServerBroadcast();
         private List<IPEndPoint> services = new List<IPEndPoint>();
-        //private List<TimeSpan> interval;//Интервалы времени, потраченные для расчетов на каждой подключенной машине
         private ManualResetEvent eventStart = new ManualResetEvent(false);
         private AutoResetEvent eventEnd = new AutoResetEvent(false);
         private object sync = new object();
         private InterfaceInfo inf = new InterfaceInfo(100);
         private AutoResetEvent closeWin = new AutoResetEvent(false);
         private System.Timers.Timer timerNotify = new System.Timers.Timer(3 * 1000);
+        private System.Timers.Timer timerUpdate = new System.Timers.Timer(3 * 1000);
 
-        private Dictionary<IPEndPoint, TimeSpan> dicTimeSpan = new Dictionary<IPEndPoint, TimeSpan>();
+        private Dictionary<IPEndPoint, double> dicTimeSpan = new Dictionary<IPEndPoint, double>();
 
         private Library.Matrix m1;
         private Library.Matrix m2;
@@ -49,53 +49,78 @@ namespace Client
         private void Go(object sender, RoutedEventArgs e)
         {
             btGo.IsEnabled = false;
+            dicTimeSpan = new Dictionary<IPEndPoint, double>();
+            timerNotify.Stop();
+            timerUpdate.Stop();
+
             new Thread(() =>
                 {
                     int size = inf.Size;
                     m1 = new Library.Matrix(size);
                     m2 = new Library.Matrix(size);
-
-                    dicTimeSpan = new Dictionary<IPEndPoint, TimeSpan>();
-                    foreach (var item in broadcast.AvailableEndPoints)
+                    lock (sync)
                     {
-                        dicTimeSpan.Add(item, new TimeSpan());
+                        foreach (var item in broadcast.AvailableEndPoints)
+                        {
+                            if (dicTimeSpan.Any(u => u.Key.Address == item.Address) == false)
+                            {
+                                dicTimeSpan.Add(item, new double());
+                            }
+                        }
+                        Dispatcher.Invoke(() =>
+                            {
+                                this.listBox.ItemsSource = dicTimeSpan;
+                                ChartIp.ItemsSource = dicTimeSpan;
+                            });
                     }
-
                     Split(0, size * size, true);
                 }).Start();
         }
 
         void Split(int begin, int count, bool first = false)
         {
-            List<Thread> listThread = new List<Thread>();
-            int workingPC = dicTimeSpan.Count;
-            int elemOnPC = (count - begin) / workingPC;
-            int residue = (count - begin) % workingPC;
-            int position = begin;
-
-            for (int i = 0; i < dicTimeSpan.Count; i++)
+            try
             {
-                Parametrs param = new Parametrs(m1, m2, position, (residue == 0 ? elemOnPC : (elemOnPC + 1)), i, dicTimeSpan.Keys.ToArray()[i]);
-                if (residue != 0)
+                List<Thread> listThread = new List<Thread>();
+                int workingPC = dicTimeSpan.Count;
+                int elemOnPC = count / workingPC;
+                int residue = count % workingPC;
+                int position = begin;
+
+                for (int i = 0; i < dicTimeSpan.Count; i++)
                 {
-                    residue--;
+                    Parametrs param = new Parametrs(m1, m2, position, (residue == 0 ? elemOnPC : (elemOnPC + 1)), i, dicTimeSpan.Keys.ToArray()[i]);
+                    if (residue != 0)
+                    {
+                        residue--;
+                    }
+                    position += (residue == 0 ? elemOnPC : (elemOnPC + 1));
+                    Thread th = new Thread(Calc);
+                    listThread.Add(th);
+                    th.Start(param);
                 }
-                position += (residue == 0 ? elemOnPC : (elemOnPC + 1));
-                Thread th = new Thread(Calc);
-                listThread.Add(th);
-                th.Start(param);
-            }
 
-            foreach (var item in listThread)
+                foreach (var item in listThread)
+                {
+                    item.Join();
+                }
+            }
+            catch(Exception)
             {
-                item.Join();
+                MessageBox.Show("Нет ПК для вычисления!");
             }
             if (first)
             {
                 Dispatcher.Invoke(() =>
                 {
                     btGo.IsEnabled = true;
+                    this.listBox.ItemsSource = null;
+                    this.listBox.ItemsSource = dicTimeSpan;
+                    ChartIp.ItemsSource = null;
+                    ChartIp.ItemsSource = dicTimeSpan;
                 });
+                timerNotify.Start();
+                timerUpdate.Start();
             }
         }
 
@@ -104,6 +129,8 @@ namespace Client
             var par = obj as Parametrs;
             
             var binding = new NetTcpBinding();
+            binding.ReceiveTimeout = new TimeSpan(0, 10, 0);
+            binding.SendTimeout = new TimeSpan(0, 10, 0);
             binding.MaxBufferSize = Int32.MaxValue;
             binding.MaxReceivedMessageSize = Int32.MaxValue;
             binding.Security.Mode = SecurityMode.None;
@@ -116,7 +143,13 @@ namespace Client
                 IServiceContract proxy = fac.CreateChannel();
                 DateTime begin = DateTime.Now;//Фиксируем начальное время
                 proxy.Mult(m1, m2, par.position, par.count);
-                dicTimeSpan[par.ip] = DateTime.Now - begin;
+                int total = (int)(DateTime.Now - begin).TotalMilliseconds;
+                lock (sync)
+                {
+                    dicTimeSpan[par.ip] += total;
+                    timerUpdate_Elapsed(null, null);
+                }
+                
             }
             catch (Exception ex)
             {
@@ -133,22 +166,41 @@ namespace Client
             timerNotify.Start();
             broadcast.StartListeningServers();
             gridMain.DataContext = inf;
-            new Thread(() =>
+            timerUpdate.Start();
+            timerUpdate.Elapsed += timerUpdate_Elapsed;
+            new Thread(Host).Start();
+        }
+
+        void timerUpdate_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            lock (sync)
+            {
+                dicTimeSpan = new Dictionary<IPEndPoint, double>(dicTimeSpan);
+                foreach (var item in broadcast.AvailableEndPoints)
                 {
-                    Host();
-                }).Start();
+                    if (dicTimeSpan.Any(u => u.Key.Address == item.Address) == false)
+                    {
+                        dicTimeSpan.Add(item, new double());
+                    }
+                }
+                Dispatcher.Invoke(() =>
+                    {
+                        this.listBox.ItemsSource = dicTimeSpan;
+                        ChartIp.ItemsSource = dicTimeSpan;
+                    });
+            }
         }
 
         void timerNotify_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            timerNotify.Stop();
             broadcast.NotifyClients();//Уведомляем сами себя о том, что готовы работать! =)
-            timerNotify.Start();
         }
 
         private void Host()
         {
             var binding = new NetTcpBinding();
+            binding.ReceiveTimeout = new TimeSpan(0, 10, 0);
+            binding.SendTimeout = new TimeSpan(0, 10, 0);
             binding.MaxBufferSize = Int32.MaxValue;
             binding.MaxReceivedMessageSize = Int32.MaxValue;
             binding.Security.Mode = SecurityMode.None;
